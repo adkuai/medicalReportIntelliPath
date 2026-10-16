@@ -1,4 +1,4 @@
-# Project 2: Specialized Zero-Shot Medical Chart & Prescription Intelligence:
+Specialized Zero-Shot Medical Chart & Prescription Intelligence:
 
 A secure clinical web dashboard where users upload high-resolution smartphone photographs of messy, handwritten doctor prescriptions or complex multi-page laboratory diagnostic reports.
 
