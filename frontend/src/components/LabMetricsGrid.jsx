@@ -44,7 +44,7 @@ export function LabMetricsGrid({ metrics = [] }) {
             Biochemical & Clinical Markers
           </h3>
           <p className="text-xs text-zinc-500 mt-1">
-            Zero-shot numeric isolation cross-referenced against standard clinical safe ranges.
+            numeric isolation cross-referenced against standard clinical safe ranges.
           </p>
         </div>
 

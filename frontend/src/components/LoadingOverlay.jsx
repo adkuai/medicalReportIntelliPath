@@ -28,7 +28,7 @@ export function LoadingOverlay({ isVisible, message }) {
         <div className="mt-6 bg-cream-50 p-4 rounded-2xl border border-cream-200 text-left space-y-2.5">
           <div className="flex items-center gap-2.5 text-xs text-zinc-700 font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Zero-shot handwriting deciphering (1-0-1, OD, BD)</span>
+            <span>handwriting deciphering (1-0-1, OD, BD)</span>
           </div>
           <div className="flex items-center gap-2.5 text-xs text-zinc-700 font-medium">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>

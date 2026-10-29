@@ -49,7 +49,7 @@ export function MedicationTimingMatrix({ medications = [] }) {
             Handwritten Drug Directions & Timing Matrix
           </h3>
           <p className="text-xs text-zinc-500 mt-1">
-            Zero-shot transcription of shorthand notation (1-0-1, OD, BD, TDS, HS) mapped row-by-row.
+            transcription of shorthand notation (1-0-1, OD, BD, TDS, HS) mapped row-by-row.
           </p>
         </div>
 

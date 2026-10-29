@@ -74,7 +74,7 @@ export function FileUploader({ onFileSelected, onAnalyze, onReset, selectedFile,
         <div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-medyellow-100 text-yellow-900 border border-medyellow-300 mb-2">
             <Sparkles className="w-3.5 h-3.5 text-yellow-700" />
-            Zero-Shot Vision Document Extraction
+            Document Extraction
           </span>
           <h2 className="text-xl sm:text-2xl font-black text-zinc-900 tracking-tight">
             Upload Prescription or Laboratory Report

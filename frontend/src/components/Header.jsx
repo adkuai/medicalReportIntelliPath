@@ -23,7 +23,7 @@ export function Header({ colabStatus, onRefreshStatus, customColabUrl, onUpdateC
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-extrabold text-lg sm:text-xl text-zinc-900 tracking-tight">
-                Zero-Shot Medical Chart <span className="text-emerald-700">& Prescription</span> Intelligence
+                medical <span className="text-emerald-700">Report</span> IntelliPath
               </h1>
               <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-medyellow-100 text-yellow-900 border border-yellow-300">
                 v1.0 Clinical
