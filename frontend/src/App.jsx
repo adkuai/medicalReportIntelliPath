@@ -230,7 +230,7 @@ export default function App() {
       <footer className="mt-16 border-t border-cream-300 bg-cream-50 py-6 text-center text-xs text-zinc-500 no-print">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p>
-            Project 2: Specialized Zero-Shot Medical Chart & Prescription Intelligence
+            Project 2: medicalReportIntelliPath
           </p>
           <p className="text-[11px] text-zinc-400">
             Intended for clinical pair-programming, laboratory review, and decision assistance.

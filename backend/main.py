@@ -5,7 +5,7 @@ from app.config import settings
 from app.routes.analysis import router as analysis_router
 
 app = FastAPI(
-    title="Specialized Zero-Shot Medical Chart & Prescription Intelligence API",
+    title="medicalReportIntelliPath",
     description="Backend microservice for zero-shot clinical document analysis powered by Qwen2.5-VL-7B-Instruct",
     version="1.0.0"
 )
@@ -25,7 +25,7 @@ app.include_router(analysis_router)
 @app.get("/")
 def read_root():
     return {
-        "service": "Specialized Zero-Shot Medical Chart & Prescription Intelligence API",
+        "service": "medicalReportIntelliPath",
         "status": "active",
         "version": "1.0.0",
         "docs_url": "/docs"
