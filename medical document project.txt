@@ -1,0 +1,16 @@
+
+Project 2: Specialized Zero-Shot Medical Chart & Prescription Intelligence
+
+A secure web dashboard where users upload high-resolution smartphone photographs of messy, handwritten doctor prescriptions or complex multi-page laboratory test reports.
+• The Colab AI Workload: You load the flagship Qwen2.5-VL-7B-Instruct onto the T4 GPU. You give it a highly complex prompt to self-analyze medical text, handwritten dosages, and lab tables.
+• The Backend Logic: The cloud model transcribes the script, identifies medication names, cross-references a dictionary layout, reads lab metrics (like Vitamin D or Hemoglobin), and tags anomalies. The laptop backend takes the JSON and isolates values out of safe numeric bounds.
+• The Frontend Output: A pristine clinical report dashboard. High-risk out-of-range lab markers are automatically highlighted in vibrant red grids, and handwritten drug directions are cleanly mapped out row-by-row with their respective timing matrices.
+
+Frontend - using html, css, javascripts and (react + vite) all for page color mainly in light white cream color with light yellow color for impressive ui layout, some buttons in black and some buttons color in light green and a spaced to insert image/pdf contains select button as green button and black button for reupload option.  
+
+backend - using with fastapi only to takes input image/pdf from frontend and connect it with ai model above mentioned in google collab to give desired output in frontend. 
+
+google collab - provide me respective code for google collab to paste and run for this project.
+*Note - I only want my respected output using that model in my dashboard in well prepared manner.
+
+now tell me all file structures that i need to make in vscode for this project with where i have to create the venv and env and gitignore and also the requirements.txt file and all the commands step by step for terminal to put put in vscode terminal to run and install all parts of this project.
