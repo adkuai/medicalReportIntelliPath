@@ -210,57 +210,45 @@ class ColabClient:
                 "message": f"Unable to reach Colab endpoint ({type(e).__name__}). Running in fallback mode or start Colab notebook."
             }
 
-    async def send_to_colab(self, base64_images: List[str], custom_colab_url: str = None) -> Dict[str, Any]:
-        """
-        Sends the base64-encoded images to the Qwen2.5-VL Colab endpoint
-        """
-        target_url = (custom_colab_url or self.colab_url).rstrip("/")
-        payload = {
-            "images": base64_images,
-            "temperature": 0.1,
-            "max_tokens": 3072
-        }
-
-        start_time = time.time()
-        try:
+        async def send_to_colab(self, base64_images: list[str], custom_colab_url: str = None) -> dict[str, any]:
+            """
+            Sends the processed document base64 images directly to the running Google Colab instance.
+            Completely ignores mock data fallbacks to guarantee fresh analysis.
+            """
+            target_url = (custom_colab_url or self.colab_url).rstrip("/")
+            
+            # Format the request body payload precisely for your Colab BaseModel schema
+            payload = {
+                "images": base64_images,
+                "temperature": 0.1,
+                "max_tokens": 3072
+            }
+            
+            logger.info(f"Shipping {len(base64_images)} document frame(s) to live GPU node: {target_url}/analyze")
+            
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                res = await client.post(
-                    f"{target_url}/analyze",
-                    json=payload,
-                    headers={
-                        "Content-Type": "application/json",
-                        "ngrok-skip-browser-warning": "true",
-                        "User-Agent": "MedicalIntelligenceClient/1.0",
-                    }
-                )
-                
-                if res.status_code == 200:
-                    data = res.json()
-                    elapsed = round(time.time() - start_time, 2)
-                    if "metadata" not in data:
-                        data["metadata"] = {}
-                    data["metadata"]["inference_time_sec"] = elapsed
-                    data["metadata"]["source"] = "colab_qwen2.5_vl"
-                    data["metadata"]["colab_url"] = target_url
-                    return data
-                else:
-                    logger.warning(f"Colab returned status {res.status_code}: {res.text}")
-                    if settings.FALLBACK_TO_MOCK_IF_OFFLINE:
-                        return self._get_fallback_mock(f"Colab returned error status {res.status_code}")
-                    raise RuntimeError(f"Colab inference failed with status {res.status_code}: {res.text}")
+                try:
+                    response = await client.post(
+                        f"{target_url}/analyze",
+                        json=payload,
+                        headers={"Content-Type": "application/json"}
+                    )
+                    
+                    # If the Colab server throws an error code, raise it immediately
+                    if response.status_code != 200:
+                        raise HTTPException(
+                            status_code=response.status_code,
+                            detail=f"Google Colab GPU processing failed: {response.text}"
+                        )
+                    
+                    # Return the genuine live model extraction dictionary safely
+                    return response.json()
+                    
+                except httpx.RequestError as exc:
+                    logger.error(f"Network transport blockage reaching Colab tunnel: {str(exc)}")
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"The backend could not reach your Google Colab AI Node tunnel endpoint link. Error: {str(exc)}"
+                    )
 
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.RequestError) as ex:
-            logger.warning(f"Failed to communicate with Colab at {target_url}: {ex}")
-            if settings.FALLBACK_TO_MOCK_IF_OFFLINE:
-                return self._get_fallback_mock(f"Could not connect to {target_url} ({type(ex).__name__})")
-            raise RuntimeError(f"Could not connect to Colab at {target_url}. Ensure your Colab tunnel is running.")
-
-    def _get_fallback_mock(self, reason: str) -> Dict[str, Any]:
-        """Provides verified fallback sample for demonstration and offline development"""
-        mock = json.loads(json.dumps(MOCK_CLINICAL_ANALYSIS))
-        mock["metadata"]["notice"] = f"Using clinical demonstration sample because Colab endpoint was unreachable: {reason}"
-        mock["metadata"]["source"] = "mock_fallback"
-        return mock
-
-colab_client = ColabClient()
 
