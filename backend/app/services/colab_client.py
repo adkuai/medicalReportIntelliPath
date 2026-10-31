@@ -3,10 +3,12 @@ import time
 import json
 import logging
 from typing import Dict, Any, List
+from fastapi import HTTPException
 from app.config import settings
 
 logger = logging.getLogger("colab_client")
 
+# This mock dictionary was what you kept seeing on every upload!
 MOCK_CLINICAL_ANALYSIS: Dict[str, Any] = {
     "document_type": "composite_chart",
     "patient_info": {
@@ -171,7 +173,7 @@ class ColabClient:
         self.timeout = float(settings.COLAB_TIMEOUT_SECONDS)
 
     async def check_health(self, override_url: str = None) -> Dict[str, Any]:
-        """Tests if the Google Colab ngrok endpoint is live and responding"""
+        """Tests if the Google Colab tunnel endpoint is live and responding"""
         target_url = (override_url or self.colab_url).rstrip("/")
         start_time = time.time()
         
@@ -191,8 +193,8 @@ class ColabClient:
                         "accessible": True,
                         "colab_url": target_url,
                         "latency_ms": latency,
-                        "model_name": res.json().get("model_name", "Qwen/Qwen2.5-VL-7B-Instruct"),
-                        "message": "Connected successfully to Google Colab T4 GPU instance!"
+                        "model_name": res.json().get("model_name", "Qwen/Qwen2.5-VL-3B-Instruct"),
+                        "message": "Connected successfully to Google Colab instance!"
                     }
                 else:
                     return {
@@ -210,41 +212,41 @@ class ColabClient:
                 "message": f"Unable to reach Colab endpoint ({type(e).__name__}). Running in fallback mode or start Colab notebook."
             }
 
-        async def send_to_colab(self, base64_images: list[str], custom_colab_url: str = None) -> dict[str, any]:
-            """
-            Sends the processed document base64 images directly to the running Google Colab instance.
-            Completely ignores mock data fallbacks to guarantee fresh analysis.
-            """
-            target_url = (custom_colab_url or self.colab_url).rstrip("/")
-            
-            # Format the request body payload precisely for your Colab BaseModel schema
-            payload = {
-                "images": base64_images,
-                "temperature": 0.1,
-                "max_tokens": 3072
-            }
-            
-            logger.info(f"Shipping {len(base64_images)} document frame(s) to live GPU node: {target_url}/analyze")
-            
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                try:
-                    response = await client.post(
-                        f"{target_url}/analyze",
-                        json=payload,
-                        headers={"Content-Type": "application/json"}
+    # FIXED: This method is now correctly un-indented by 4 spaces to belong directly to the class
+    async def send_to_colab(self, base64_images: List[str], custom_colab_url: str = None) -> Dict[str, Any]:
+        """
+        Sends the processed document base64 images directly to the running Google Colab instance.
+        """
+        target_url = (custom_colab_url or self.colab_url).rstrip("/")
+        
+        payload = {
+            "images": base64_images,
+            "temperature": 0.1,
+            "max_tokens": 3072
+        }
+        
+        logger.info(f"Shipping {len(base64_images)} document frame(s) to live GPU node: {target_url}/analyze")
+        
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                response = await client.post(
+                    f"{target_url}/analyze",
+                    json=payload,
+                    headers={"Content-Type": "application/json"}
+
                     )
                     
                     # If the Colab server throws an error code, raise it immediately
-                    if response.status_code != 200:
+                if response.status_code != 200:
                         raise HTTPException(
                             status_code=response.status_code,
                             detail=f"Google Colab GPU processing failed: {response.text}"
                         )
                     
                     # Return the genuine live model extraction dictionary safely
-                    return response.json()
+                return response.json()
                     
-                except httpx.RequestError as exc:
+            except httpx.RequestError as exc:
                     logger.error(f"Network transport blockage reaching Colab tunnel: {str(exc)}")
                     raise HTTPException(
                         status_code=503,
