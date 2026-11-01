@@ -1,6 +1,15 @@
+
 import re
 from typing import Dict, Any, List, Optional
-from app.schemas import ClinicalAnalysisResult, LabMetricItem, MedicationItem, MedicationTiming, ReferenceInterval
+
+from app.schemas import (
+    ClinicalAnalysisResult,
+    LabMetricItem,
+    MedicationItem,
+    MedicationTiming,
+    ReferenceInterval,
+)
+
 
 # Standard clinical reference database for validation & cross-referencing
 CLINICAL_REFERENCE_RANGES: Dict[str, Dict[str, Any]] = {
@@ -39,190 +48,312 @@ CLINICAL_REFERENCE_RANGES: Dict[str, Dict[str, Any]] = {
     "esr": {"min": 0.0, "max": 20.0, "unit": "mm/hr", "category": "Inflammatory", "critical_high": 60.0},
 }
 
+
 class ClinicalValidator:
+
     @staticmethod
     def parse_numeric(val: Any) -> Optional[float]:
-        """Extracts first valid floating point number from messy OCR strings"""
+        """
+        Extract the first valid floating-point number from an OCR value.
+
+        Examples:
+            "4.5"       -> 4.5
+            "4.5 mg/dL" -> 4.5
+            "1,200"     -> 1200.0
+            None        -> None
+        """
+        if isinstance(val, bool):
+            return None
+
         if isinstance(val, (int, float)):
             return float(val)
-        if not val or not isinstance(val, str):
+
+        if not isinstance(val, str) or not val.strip():
             return None
+
         match = re.search(r"[-+]?\d*\.?\d+", val.replace(",", ""))
+
         if match:
             try:
                 return float(match.group(0))
             except ValueError:
                 return None
+
         return None
 
     @classmethod
     def validate_and_enhance(cls, data: Dict[str, Any]) -> ClinicalAnalysisResult:
         """
         Takes raw output from Qwen-VL (or fallback mock) and:
-        1. Normalizes medication schedule timings (1-0-1, OD, BD, TDS, etc.)
-        2. Evaluates lab metrics against numeric boundaries
-        3. Isolates out-of-range bounds, highlights severe deviations in vibrant red
-        4. Synthesizes clinical alerts
+
+        1. Normalizes medication schedule timings.
+        2. Evaluates laboratory metrics against numeric boundaries.
+        3. Identifies out-of-range values.
+        4. Synthesizes clinical alerts.
         """
+
+        # ---------------------------------------------------------
+        # 1. VALIDATE MEDICATIONS
+        # ---------------------------------------------------------
+
         raw_meds = data.get("medications", [])
         validated_meds: List[MedicationItem] = []
 
         for med in raw_meds:
             if not isinstance(med, dict):
                 continue
-            
+
             drug_name = med.get("drug_name") or med.get("name") or "Unnamed Medication"
             dosage = med.get("dosage", "")
             instructions = med.get("instructions", "")
-            
-            # Extract timing dictionary or parse from instructions (e.g. 1-0-1, BD, TDS)
+
             raw_timing = med.get("timing", {})
+
             morning = raw_timing.get("morning", False) if isinstance(raw_timing, dict) else False
             afternoon = raw_timing.get("afternoon", False) if isinstance(raw_timing, dict) else False
             evening = raw_timing.get("evening", False) if isinstance(raw_timing, dict) else False
             night = raw_timing.get("night", False) if isinstance(raw_timing, dict) else False
 
-            # Infer from shorthand notation if timing is all false
             full_text = f"{instructions} {dosage} {drug_name}".lower()
+
+            # Infer medication timing from shorthand notation
             if not any([morning, afternoon, evening, night]):
+
                 if "1-0-1" in full_text:
                     morning, afternoon, evening, night = True, False, False, True
+
                 elif "1-1-1" in full_text or "tds" in full_text or "tid" in full_text:
                     morning, afternoon, evening, night = True, True, False, True
+
                 elif "0-0-1" in full_text or "bedtime" in full_text or "hs" in full_text:
                     morning, afternoon, evening, night = False, False, False, True
+
                 elif "1-0-0" in full_text or "od morning" in full_text:
                     morning, afternoon, evening, night = True, False, False, False
+
                 elif "0-1-0" in full_text:
                     morning, afternoon, evening, night = False, True, False, False
+
                 elif "bd" in full_text or "bid" in full_text:
                     morning, afternoon, evening, night = True, False, False, True
+
                 elif "qid" in full_text or "1-1-1-1" in full_text:
                     morning, afternoon, evening, night = True, True, True, True
 
             food_relation = med.get("food_relation", "After Food")
+
             if "before food" in full_text or "empty stomach" in full_text or "ac" in full_text:
                 food_relation = "Before Food"
+
             elif "after food" in full_text or "pc" in full_text:
                 food_relation = "After Food"
 
-            validated_meds.append(MedicationItem(
-                drug_name=drug_name,
-                generic_name=med.get("generic_name", ""),
-                dosage=dosage,
-                form=med.get("form", "Tablet"),
-                timing=MedicationTiming(
-                    morning=morning,
-                    afternoon=afternoon,
-                    evening=evening,
-                    night=night
-                ),
-                food_relation=food_relation,
-                duration=med.get("duration", "As directed"),
-                instructions=instructions,
-                confidence=med.get("confidence", "high")
-            ))
+            validated_meds.append(
+                MedicationItem(
+                    drug_name=drug_name,
+                    generic_name=med.get("generic_name", ""),
+                    dosage=dosage,
+                    form=med.get("form", "Tablet"),
+                    timing=MedicationTiming(
+                        morning=morning,
+                        afternoon=afternoon,
+                        evening=evening,
+                        night=night,
+                    ),
+                    food_relation=food_relation,
+                    duration=med.get("duration", "As directed"),
+                    instructions=instructions,
+                    confidence=med.get("confidence", "high"),
+                )
+            )
 
-        # Validate lab metrics
+        # ---------------------------------------------------------
+        # 2. VALIDATE LAB METRICS
+        # ---------------------------------------------------------
+
         raw_labs = data.get("lab_metrics", [])
         validated_labs: List[LabMetricItem] = []
-        extra_alerts: List[str] = list(data.get("critical_alerts", []))
+
+        raw_alerts = data.get("critical_alerts") or []
+        extra_alerts: List[str] = (
+            raw_alerts if isinstance(raw_alerts, list) else []
+        )
 
         for lab in raw_labs:
+
             if not isinstance(lab, dict):
                 continue
 
             test_name = lab.get("test_name", "Diagnostic Test")
+
             raw_obs = lab.get("observed_value", "")
             obs_num = cls.parse_numeric(raw_obs)
+
             unit = lab.get("unit", "")
-            
+
+            # Extract AI-provided reference interval
             ref_dict = lab.get("reference_interval", {})
+
             ref_min = None
             ref_max = None
             ref_text = ""
-            
+
             if isinstance(ref_dict, dict):
-                ref_min = ref_dict.get("min")
-                ref_max = ref_dict.get("max")
+                ref_min = cls.parse_numeric(ref_dict.get("min"))
+                ref_max = cls.parse_numeric(ref_dict.get("max"))
                 ref_text = ref_dict.get("text", "")
-            
-            # Lookup in standard clinical dictionary if reference is missing
+
+            # -----------------------------------------------------
+            # 3. LOOK UP STANDARD CLINICAL REFERENCE RANGE
+            # -----------------------------------------------------
+
             std_ref = None
-            lower_name = test_name.lower().strip()
+            lower_name = str(test_name).lower().strip()
+
             for key, val in CLINICAL_REFERENCE_RANGES.items():
+
                 if key in lower_name or lower_name in key:
                     std_ref = val
                     break
 
             if std_ref:
+
                 if ref_min is None:
                     ref_min = std_ref.get("min")
+
                 if ref_max is None:
                     ref_max = std_ref.get("max")
+
                 if not unit:
                     unit = std_ref.get("unit", "")
+
                 if not ref_text and ref_min is not None and ref_max is not None:
                     ref_text = f"{ref_min} - {ref_max} {unit}"
 
-            # Boundary evaluation
+            # -----------------------------------------------------
+            # 4. ENSURE NUMERIC REFERENCE BOUNDARIES
+            # -----------------------------------------------------
+
+            # This prevents float-versus-string comparison errors.
+            ref_min = cls.parse_numeric(ref_min)
+            ref_max = cls.parse_numeric(ref_max)
+
+            # -----------------------------------------------------
+            # 5. EVALUATE LABORATORY BOUNDARIES
+            # -----------------------------------------------------
+
             is_out = lab.get("is_out_of_range", False)
-            status = lab.get("status", "NORMAL").upper()
-            risk_level = lab.get("risk_level", "none").lower()
+
+            status = str(lab.get("status", "NORMAL") or "NORMAL").upper()
+            risk_level = str(lab.get("risk_level", "none") or "none").lower()
 
             if obs_num is not None:
+
                 if ref_min is not None and obs_num < ref_min:
+
                     is_out = True
                     status = "LOW"
                     risk_level = "moderate"
-                    if std_ref and "critical_low" in std_ref and obs_num <= std_ref["critical_low"]:
+
+                    if (
+                        std_ref
+                        and "critical_low" in std_ref
+                        and obs_num <= std_ref["critical_low"]
+                    ):
                         status = "CRITICAL_LOW"
                         risk_level = "critical"
+
                 elif ref_max is not None and obs_num > ref_max:
+
                     is_out = True
                     status = "HIGH"
                     risk_level = "high"
-                    if std_ref and "critical_high" in std_ref and obs_num >= std_ref["critical_high"]:
+
+                    if (
+                        std_ref
+                        and "critical_high" in std_ref
+                        and obs_num >= std_ref["critical_high"]
+                    ):
                         status = "CRITICAL_HIGH"
                         risk_level = "critical"
-                elif ref_min is not None and ref_max is not None and ref_min <= obs_num <= ref_max:
+
+                elif (
+                    ref_min is not None
+                    and ref_max is not None
+                    and ref_min <= obs_num <= ref_max
+                ):
+
                     is_out = False
                     status = "NORMAL"
                     risk_level = "none"
 
+            # -----------------------------------------------------
+            # 6. GENERATE CRITICAL ALERTS
+            # -----------------------------------------------------
+
             if is_out and risk_level in ["high", "critical"]:
-                alert_msg = f"ALERT [{test_name}]: Observed {raw_obs} {unit} is {status.replace('_', ' ')} (Normal: {ref_text or f'{ref_min}-{ref_max}'})"
+
+                alert_msg = (
+                    f"ALERT [{test_name}]: Observed {raw_obs} {unit} "
+                    f"is {status.replace('_', ' ')} "
+                    f"(Normal: {ref_text or f'{ref_min}-{ref_max}'})"
+                )
+
                 if alert_msg not in extra_alerts:
                     extra_alerts.append(alert_msg)
 
-            validated_labs.append(LabMetricItem(
-                test_name=test_name,
-                category=lab.get("category", std_ref["category"] if std_ref else "Clinical Chemistry"),
-                observed_value=raw_obs,
-                unit=unit,
-                reference_interval=ReferenceInterval(
-                    min=ref_min,
-                    max=ref_max,
-                    text=ref_text or (f"{ref_min} - {ref_max} {unit}" if (ref_min is not None and ref_max is not None) else "See doctor")
-                ),
-                status=status,
-                is_out_of_range=is_out,
-                risk_level=risk_level,
-                clinical_significance=lab.get("clinical_significance", "")
-            ))
+            # -----------------------------------------------------
+            # 7. BUILD VALIDATED LAB METRIC
+            # -----------------------------------------------------
 
-        # Assemble full clinical result
+            validated_labs.append(
+                LabMetricItem(
+                    test_name=test_name,
+                    category=lab.get(
+                        "category",
+                        std_ref["category"] if std_ref else "Clinical Chemistry",
+                    ),
+                    observed_value=raw_obs,
+                    unit=unit,
+                    reference_interval=ReferenceInterval(
+                        min=ref_min,
+                        max=ref_max,
+                        text=(
+                            ref_text
+                            or (
+                                f"{ref_min} - {ref_max} {unit}"
+                                if ref_min is not None and ref_max is not None
+                                else "See doctor"
+                            )
+                        ),
+                    ),
+                    status=status,
+                    is_out_of_range=is_out,
+                    risk_level=risk_level,
+                    clinical_significance=lab.get("clinical_significance", ""),
+                )
+            )
+
+        # ---------------------------------------------------------
+        # 8. ASSEMBLE COMPLETE CLINICAL RESULT
+        # ---------------------------------------------------------
+
         result = ClinicalAnalysisResult(
-            document_type=data.get("document_type", "handwritten_prescription"),
+            document_type=data.get(
+                "document_type",
+                "handwritten_prescription",
+            ),
             patient_info=data.get("patient_info", {}),
             doctor_hospital_info=data.get("doctor_hospital_info", {}),
             diagnosis_notes=data.get("diagnosis_notes", []),
             medications=validated_meds,
             lab_metrics=validated_labs,
             critical_alerts=extra_alerts,
-            transcription_confidence_summary=data.get("transcription_confidence_summary", "Zero-shot extraction performed with high clinical alignment."),
-            metadata=data.get("metadata", {})
+            transcription_confidence_summary=data.get(
+                "transcription_confidence_summary",
+                "Zero-shot extraction performed with high clinical alignment.",
+            ),
+            metadata=data.get("metadata", {}),
         )
 
         return result
-

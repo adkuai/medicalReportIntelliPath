@@ -232,25 +232,34 @@ class ColabClient:
                 response = await client.post(
                     f"{target_url}/analyze",
                     json=payload,
-                    headers={"Content-Type": "application/json"}
-
+                    headers={
+                        "Content-Type": "application/json",
+                        "ngrok-skip-browser-warning": "true",
+                        "User-Agent": "MedicalIntelligenceClient/1.0",
+                    }
+                )
+                    
+                # If the Colab server throws an error code, raise it immediately
+                if response.status_code != 200:
+                    try:
+                        err_json = response.json()
+                        err_detail = err_json.get("detail", response.text)
+                    except Exception:
+                        err_detail = response.text
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"Google Colab GPU processing failed: {err_detail}"
                     )
                     
-                    # If the Colab server throws an error code, raise it immediately
-                if response.status_code != 200:
-                        raise HTTPException(
-                            status_code=response.status_code,
-                            detail=f"Google Colab GPU processing failed: {response.text}"
-                        )
-                    
-                    # Return the genuine live model extraction dictionary safely
+                # Return the genuine live model extraction dictionary safely
                 return response.json()
                     
             except httpx.RequestError as exc:
-                    logger.error(f"Network transport blockage reaching Colab tunnel: {str(exc)}")
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"The backend could not reach your Google Colab AI Node tunnel endpoint link. Error: {str(exc)}"
-                    )
+                logger.error(f"Network transport blockage reaching Colab tunnel: {str(exc)}")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"The backend could not reach your Google Colab AI Node tunnel endpoint link. Error: {str(exc)}"
+                )
 
 
+colab_client = ColabClient()

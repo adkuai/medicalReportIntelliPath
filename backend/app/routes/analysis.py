@@ -25,6 +25,24 @@ async def check_colab_status(colab_url: Optional[str] = Query(None, description=
         message=result.get("message", "")
     )
 
+@router.get("/analyze")
+def analyze_endpoint_info():
+    """
+    Informative endpoint explaining that /api/analyze requires an HTTP POST request.
+    Prevents 405 Method Not Allowed confusion when navigated to in a browser.
+    """
+    return {
+        "status": "active",
+        "endpoint": "/api/analyze",
+        "description": "Upload a medical document (JPEG, PNG, or PDF) using HTTP POST multipart/form-data to analyze.",
+        "supported_method": "POST",
+        "parameters": {
+            "file": "Required. UploadFile (image or multi-page PDF)",
+            "custom_colab_url": "Optional. Public tunnel URL for the Colab worker"
+        },
+        "docs_url": "/docs"
+    }
+
 @router.post("/analyze", response_model=ClinicalAnalysisResult)
 async def analyze_medical_document(
     file: UploadFile = File(...),
@@ -59,6 +77,8 @@ async def analyze_medical_document(
         final_result = ClinicalValidator.validate_and_enhance(raw_result)
         
         # Attach file metadata
+        if not isinstance(final_result.metadata, dict):
+            final_result.metadata = {}
         final_result.metadata["filename"] = file.filename
         final_result.metadata["pages_processed"] = len(base64_images)
         final_result.metadata["mime_type"] = mime_type
@@ -80,4 +100,3 @@ async def get_sample_clinical_data():
     for instant UI testing and verification.
     """
     return ClinicalValidator.validate_and_enhance(MOCK_CLINICAL_ANALYSIS)
-
